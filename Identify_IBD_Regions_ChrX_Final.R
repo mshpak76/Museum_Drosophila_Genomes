@@ -1,0 +1,365 @@
+########
+###### evaluate genetic distances by interval. Consider all jointly non-NA sites among pairs
+
+setwd("/raid10/mshpak/MuseumFlies/IBD_Calculations")
+
+chrom = "ChrX" #change as needed
+outfile_name = paste("Full_Mat_", chrom, sep = '')
+outfile_name = paste(outfile_name, ".csv", sep = '')
+
+#write.csv(Full_Mat, file = outfile_name, row.names=FALSE)
+#
+Full_Mat = read.csv(outfile_name, header=TRUE)
+Full_Mat = Full_Mat[,1:24]
+
+#chr_window_filename = paste("windows_ZI10000_", chrom, sep = '')
+chr_window_filename = paste("windows_ZI25000_", chrom, sep = '')
+chr_window_filename = paste(chr_window_filename, ".txt", sep = '')
+
+
+
+#X
+# haploid 1800s: H10, 11, 13 (4,5,7 in recode)
+#  (H6, H4, H12, H10, 11, 13)
+elements_1800 = c(3,1,6,4,5,7)
+pairs_1800 = c()
+for(i in 1:(length(elements_1800)-1)){
+	for(j in (i+1):length(elements_1800)){
+		pairs_1800 = rbind(pairs_1800, c(elements_1800[i],elements_1800[j]))
+	}
+}
+
+# haploid 1933: H3, 7 (low qual), H1, 15, 16, 14, 21, 17, 8 (haploid), H18, 19, 20, 22, 24, 23 (diploid ranked by quality)
+#elements_1933 = c(11,12,10,14,16,17,21,13,15,18,19,20,22,23,24)
+elements_1933 = c(11,12,10,15,16,14,18,17,13,19,20,21,22,24,23)
+pairs_1933 = c()
+for(i in 1:(length(elements_1933)-1)){
+	for(j in (i+1):length(elements_1933)){
+		pairs_1933 = rbind(pairs_1933, c(elements_1933[i], elements_1933[j]))
+	}
+}
+
+
+# when calculating average distance between an individual chromosome and others in the population
+# for comparison to outgroup, we exclude those individuals with obvious pairwise IBD based on
+# distance metrics so as not to deflate genetic distance
+
+assoc_exclude_1800 = list()
+assoc_exclude_1800[[1]] = c(1,3,6)
+assoc_exclude_1800[[3]] = c(3,1,6)
+assoc_exclude_1800[[4]] = c(4,7)
+assoc_exclude_1800[[5]] = c(5)
+assoc_exclude_1800[[6]] = c(6,1,3)
+assoc_exclude_1800[[7]] = c(7,4)
+
+assoc_exclude_1933 = list()
+assoc_exclude_1933[[10]] = c(10,12,17,18)
+assoc_exclude_1933[[11]] = c(11)
+assoc_exclude_1933[[12]] = c(12,10)
+assoc_exclude_1933[[13]] = c(13)
+assoc_exclude_1933[[14]] = c(14,16,17,19)
+assoc_exclude_1933[[15]] = c(15)
+assoc_exclude_1933[[16]] = c(16,14,17,18,20)
+assoc_exclude_1933[[17]] = c(17,10,14,16)
+assoc_exclude_1933[[18]] = c(18,10,16)
+assoc_exclude_1933[[19]] = c(19,22,24)
+assoc_exclude_1933[[20]] = c(20,16)
+assoc_exclude_1933[[21]] = c(21)
+assoc_exclude_1933[[22]] = c(22,19)
+assoc_exclude_1933[[23]] = c(23)
+assoc_exclude_1933[[24]] = c(24,19)
+
+
+#ibd_pairs_1800 = rbind(c(1,3),c(1,6),c(3,6),c(4,7))
+#ibd_pairs_1933 = rbind(c(10,12),c(10,17),c(10,18),c(14,16),c(14,17),c(14,19),c(16,18),c(16,20),c(19,22),c(19,24))
+
+#try alternative seq prioritizing - consider order of low quality
+seq_to_mask_prioritize = function(mat, low_qual_samples){
+	temp_mat = mat
+	to_mask = c()
+	all_instances = c(temp_mat[,1],temp_mat[,2])
+	if(any(low_qual_samples %in% all_instances)){
+		iter = 0
+		lq = low_qual_samples[which(low_qual_samples %in% all_instances)]
+		while(length(temp_mat[,1] > 0) & any(lq %in% all_instances)){
+			lq_samp = lq[1]
+			low_qual_pos = which(lq_samp %in% temp_mat[,1] | lq_samp %in% temp_mat[,2])
+			low_qual_add = lq[low_qual_pos]
+			#to_mask = c(to_mask,low_qual_add)
+			posits = which(temp_mat[,1] %in% low_qual_add | temp_mat[,2] %in% low_qual_add)
+			if(length(temp_mat[,1]) > 1){
+				to_mask = c(to_mask, lq_samp)
+			}else{
+				to_mask = c(to_mask, temp_mat[1,1])
+			}
+			lq = lq[2:length(lq)]
+			temp_mat = temp_mat[-posits,,drop=FALSE]
+			all_instances = c(temp_mat[,1],temp_mat[,2])
+			iter = iter + 1
+		}		
+	}
+	iter = 0
+	while(length(temp_mat[,1]>0)){
+		all_instances = c(temp_mat[,1],temp_mat[,2])
+		#number of times a sample appears
+		occurrences = sort(table(all_instances))
+		max_occur = max(occurrences)
+		which_max_occur = which(occurrences == max_occur)
+		max_instances = as.numeric(names(which_max_occur)[1])
+		posits = which(temp_mat[,1]==max_instances | temp_mat[,2]==max_instances)
+		if(length(temp_mat[,1]) > 1){
+			to_mask = c(to_mask, max_instances)
+		}else{
+			to_mask = c(to_mask, temp_mat[1,1])
+		}
+		temp_mat = temp_mat[-posits,,drop=FALSE]
+		iter = iter + 1
+	}
+	return(to_mask)
+}
+
+
+
+ibd_prioritize_1800 = seq_to_mask_prioritize(ibd_pairs_1800,c())
+ibd_prioritize_1933 = seq_to_mask_prioritize(ibd_pairs_1933,c())
+
+
+
+Hap1800 = c('H4','H5','H6','H10','H11','H12','H13')
+Hap1933 = c('H1','H3','H7','H8','H14','H15','H16','H17','H21')
+Dip1800 = c('H9','H25')
+Dip1933 = c('H18','H19','H20','H22','H23','H24')
+museum_samples = c(Hap1800,Dip1800,Hap1933,Dip1933)
+ 
+
+#keep
+for(i in assoc_exclude_1800){
+	print(museum_samples[i])
+}
+
+for(i in assoc_exclude_1933){
+	print(museum_samples[i])
+}
+
+seq_ham_dist = function(v1,v2){
+	return(sum(v1 != v2, na.rm = TRUE))
+}
+
+problem_pairs_1800 = pairs_1800
+problem_pairs_1933 = pairs_1933
+
+
+
+
+# average distance in relation to non-na sites among pairs
+pairwise_pi = function(v1,v2){
+	nsites = which(is.na(v1)==FALSE & is.na(v2)==FALSE)
+	sdist = seq_ham_dist(v1,v2)
+	return(sdist/length(nsites))
+}
+
+
+comp_mat_distances = function(M1){
+	Dmat = c()
+	for(i in 1:length(M1[1,])){
+		vtemp = c()
+		for(j in 1:length(M1[1,])){
+			dist = pairwise_pi(M1[,i],M1[,j])
+			vtemp = c(vtemp, dist)
+		}
+		Dmat = rbind(Dmat, vtemp)
+	}
+	return(Dmat)
+}
+
+comp_mat_distances = function(M1,samples){
+	Dmat = c()
+	for(i in 1:length(samples)){
+		vtemp = c()
+		for(j in 1:length(M1[1,])){
+			dist = pairwise_pi(M1[,i],M1[,j])
+			vtemp = c(vtemp, dist)
+		}
+		Dmat = rbind(Dmat, vtemp)
+	}
+	return(Dmat)
+}
+
+
+Hap1800 = c('H4','H5','H6','H10','H11','H12','H13')
+Hap1933 = c('H1','H3','H7','H8','H14','H15','H16','H17','H21')
+Dip1800 = c('H9','H25')
+Dip1933 = c('H18','H19','H20','H22','H23','H24')
+museum_samples = c(Hap1800,Dip1800,Hap1933,Dip1933)
+ 
+window_intervals = read.csv(chr_window_filename, sep = '\t', header=FALSE)
+
+dict_1800 = list()
+for(i in 1:length(problem_pairs_1800[,1])){
+	dict_1800[[museum_samples[problem_pairs_1800[i,1]]]]=c()
+}
+
+dict_1933 = list()
+for(i in 1:length(problem_pairs_1933[,1])){
+	dict_1933[[museum_samples[problem_pairs_1933[i,1]]]]=c()
+}
+
+
+#names of these lists are indices rather than sample names
+#dtemp_1800 = list()
+#dtemp_1933 = list()
+
+
+all_1800 = unique(c(problem_pairs_1800[,1],problem_pairs_1800[,2]))
+all_1933 = unique(c(problem_pairs_1933[,1],problem_pairs_1933[,2]))
+
+
+#create correction factors based on average distances to outside populations
+window_correction_factors = c() #per window per sample
+window_pi_1800 = c() # per window across all samples
+window_pi_1933 = c()
+for(i in 1:length(window_intervals[,1])){
+	start = window_intervals[i,1]+1
+	end = window_intervals[i,2]+1
+	part_mat = Full_Mat[start:end,]
+	Dist_Part_Mat = comp_mat_distances(part_mat,museum_samples)
+	correct_factors = rep(1,length(museum_samples))
+	avg_win_dist_1800 = c()
+	for(j in all_1800){
+		vtemp = Dist_Part_Mat[j, all_1800]
+		vtemp = vtemp[-assoc_exclude_1800[[j]]]
+		med_dist = median(vtemp, na.rm = TRUE)
+		correct_factors[j] = med_dist
+		avg_win_dist_1800 = c(avg_win_dist_1800, med_dist)
+	}
+	pop_avg_1800 = median(avg_win_dist_1800, na.rm = TRUE)
+	window_pi_1800 = c(window_pi_1800,pop_avg_1800)
+	correct_factors[all_1800] = correct_factors[all_1800]/pop_avg_1800
+	avg_win_dist_1933 = c()
+	for(j in all_1933){
+		vtemp = Dist_Part_Mat[j, all_1933]
+		vtemp = vtemp[-assoc_exclude_1933[[j]]]
+		med_dist = median(vtemp, na.rm = TRUE)
+		correct_factors[j] = med_dist
+		avg_win_dist_1933 = c(avg_win_dist_1933, med_dist)
+	}
+	pop_avg_1933 = median(avg_win_dist_1933, na.rm = TRUE)
+	window_pi_1933 = c(window_pi_1933, pop_avg_1933)
+	correct_factors[all_1933] = correct_factors[all_1933]/pop_avg_1933
+	window_correction_factors = rbind(window_correction_factors, correct_factors)
+}
+
+
+hap_1933 = c(10,13,14,15,16,17,18)
+dip_1933 = c(11,12,19,20,21,22,23,24)
+
+# treat haploids as "low quality" in 1933
+low_qual_1800 = c(1,3,6)
+low_qual_1933 = c(11,12,10,11,15,16,14,18,17,13)
+#low_qual_1933 = c(11,12,10,13,14,15,16,17,18)
+
+#low_qual_1800 = elements_1800
+#low_qual_1933 = elements_1933
+
+#low_qual_1800 = c(low_qual_1800, setdiff(ibd_prioritize_1800, low_qual_1800))
+#low_qual_1933 = c(low_qual_1933, setdiff(ibd_prioritize_1933, low_qual_1933))
+
+all_1800 = unique(c(problem_pairs_1800[,1],problem_pairs_1800[,2]))
+all_1933 = unique(c(problem_pairs_1933[,1],problem_pairs_1933[,2]))
+
+for(i in 1:length(window_intervals[,1])){
+	start = window_intervals[i,1]+1
+	end = window_intervals[i,2]+1
+	part_mat = Full_Mat[start:end,]
+	Dist_Part_Mat = comp_mat_distances(part_mat,museum_samples)
+	temp_pairs_1800 = c()
+	for(j in 1:length(problem_pairs_1800[,1])){ 
+		first_samp = problem_pairs_1800[j,1]
+		second_samp = problem_pairs_1800[j,2]
+		dist_pair = Dist_Part_Mat[first_samp, second_samp]
+		if(problem_pairs_1800[j,1] %in% c(1,3,6) & problem_pairs_1800[j,2] %in% c(1,3,6)){
+			#diploid/diploid
+			if(dist_pair < 0.875*window_pi_1800[i]*window_correction_factors[i,first_samp]*window_correction_factors[i,second_samp]){
+				temp_pairs_1800 = rbind(temp_pairs_1800, problem_pairs_1800[j,])
+			}
+		}else if(problem_pairs_1800[j,1] %in% c(4,5,7) & problem_pairs_1800[j,2] %in% c(4,5,7)){
+			#haploid/haploid
+			if(dist_pair < 0.5*window_pi_1800[i]*window_correction_factors[i,first_samp]*window_correction_factors[i,second_samp]){
+				temp_pairs_1800 = rbind(temp_pairs_1800, problem_pairs_1800[j,])
+			}
+		}else{
+			#haploid/diploid
+			if(dist_pair < 0.75*window_pi_1800[i]*window_correction_factors[i,first_samp]*window_correction_factors[i,second_samp]){
+				temp_pairs_1800 = rbind(temp_pairs_1800, problem_pairs_1800[j,])
+				}
+		}
+	}
+	seq_mask_1800 = seq_to_mask_prioritize(temp_pairs_1800, low_qual_1800)
+	for(val in seq_mask_1800){
+		dict_1800[[museum_samples[val]]] = unique(c(dict_1800[[museum_samples[val]]], i))
+	}
+	## 1933 samples: different haploid/diploid X combinations
+	temp_pairs_1933 = c()
+	for(j in 1:length(problem_pairs_1933[,1])){
+		first_samp = problem_pairs_1933[j,1]
+		second_samp = problem_pairs_1933[j,2]
+		dist_pair = Dist_Part_Mat[first_samp, second_samp]
+		if(problem_pairs_1933[j,1] %in% hap_1933 & problem_pairs_1933[j,2] %in% hap_1933){
+			#haploid/haploid comparisons
+			if(dist_pair < 0.5*window_pi_1933[i]*window_correction_factors[i,first_samp]*window_correction_factors[i,second_samp]){
+				temp_pairs_1933 = rbind(temp_pairs_1933, problem_pairs_1933[j,])
+			}
+		}else if(problem_pairs_1933[j,1] %in% dip_1933 & problem_pairs_1933[j,2] %in% dip_1933){
+			#diploid/diploid comparisons
+			if(dist_pair < 0.875*window_pi_1933[i]*window_correction_factors[i,first_samp]*window_correction_factors[i,second_samp]){
+				temp_pairs_1933 = rbind(temp_pairs_1933, problem_pairs_1933[j,])
+			}
+		}else{
+			#hapoloid/diploid
+			if(dist_pair < 0.75*window_pi_1933[i]*window_correction_factors[i,first_samp]*window_correction_factors[i,second_samp]){
+				temp_pairs_1933 = rbind(temp_pairs_1933, problem_pairs_1933[j,])
+			}
+		}
+	}
+	seq_mask_1933 = seq_to_mask_prioritize(temp_pairs_1933, low_qual_1933)
+	for(val in seq_mask_1933){
+		dict_1933[[museum_samples[val]]] = unique(c(dict_1933[[museum_samples[val]]], i))
+	}
+}
+
+max_len = length(window_intervals[,1])
+
+To_Remove_1800 = c()
+for(samp in names(dict_1800)){
+	tempv = c(samp, dict_1800[[samp]])
+	length(tempv)=max_len
+	To_Remove_1800 = rbind(To_Remove_1800, tempv)
+}
+
+To_Remove_1933 = c()
+for(samp in names(dict_1933)){
+	tempv = c(samp, dict_1933[[samp]])
+	length(tempv)=max_len
+	To_Remove_1933 = rbind(To_Remove_1933, tempv)
+}
+
+To_Remove = rbind(To_Remove_1800, To_Remove_1933)
+
+
+# change this to appropriate chromosome
+write.csv(To_Remove, file="Remove_Windows_X.csv", row.names=FALSE)
+
+to_remove_s = read.csv("Remove_Windows_X.csv")
+for(i in 1:length(to_remove_s[,1])){
+	samp_s = to_remove_s[i,1]
+	windows_s = to_remove_s[i,]
+	windows_s = windows_s[-1]
+	windows_s = windows_s[which(windows_s != "NA")]
+	print(samp_s)
+	print(length(windows_s))
+}
+
+
+		
+	
+		

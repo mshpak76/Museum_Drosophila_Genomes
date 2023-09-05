@@ -1,0 +1,81 @@
+Summary of Contents:
+
+1. PBE Statistics
+Population branch excess (a rescaled population branch statistic) and other summary statistics for comparisons of focal historical populations - either Nineteenth Century or early Twentieth Century (2015) to outgroups for each site in the genome, as described in Shpak et al 2023
+
+Nineteenth_ModernLund_TwentiethZI_SitePBE_Chr2L.txt
+1800s (Nineteenth Cent) Lund and other northern European sites as focal population, 1933 (Twentieth Cent) Lund as outgroup, 2015 (Modern) Lund poolseq as outgroup.
+Other PBE files for 1800's focal population have same name with Chr2R,3L,3R,X as suffix in place of 2L
+
+
+Twentieth_ModernLund_FRZI_SitePBE_Chr2L.txt
+1933 (Twentieth Cent) Lund as focal population, 2015 (Modern) Lund as otugroup, 2010s Lyon (France = FR) as outgroup
+Other PBE files for 1800's focal population have same name with Chr2R,3L,3R,X as suffix in place of 2L
+
+
+==============================================
+
+Scripts -
+In archive PLOSBio2023.tar.gz
+
+I. VCF_Process
+call_haplotypes_var_only.py (Creates "haploid" genotype call for low quality sequences where the number of counts per site is too low to reliably identify diploid genotypes. The more common nucleotide is assigned at each site when more than one appears in the vcf, or selected randomly in case of ties)
+
+
+remove_lowfreq_heterozygotes.py (Diploid genotypes are called from the vcf when the total number of nucleotides is sufficiently high and the rarer nucleotide frequency > 0.25)
+
+
+II. Poolseq Data Processing
+effective_sample_size_short.py (applies the Stirling number-based estimate of effective sample size for poolseq data from Ferretti et al 2013 and applies these estimates to the nucleotide count files)
+
+effective_sample_size_short_haploidX.py (estimate effective sample size for haploid X chromosome samples)
+
+III. Data Quality
+make_site_depth_file.py (tallies the depth at each site of every chromosome arm across samples)
+
+Count_Singletons_AT.R (counts the number of singleton nucleotides, i.e. those that appear only once across all samples, and tallies the fraction of singletons that are A/T)
+
+
+IV. IBD Analysis
+Identify_IBD_Regions_Autosomes_Final.R  (pairwise comparison of genomes to identify regions that may be IBD based on comparisons of pairwise distance to background genetic distance to genomes in outside populations. The details of the heuristic criteria used to classify IBD are described in detail in the Methods section of our PLOS Biology paper. The output file is a table listing IBD regions to be masked, i.e. one per pair with priority given to masking lower quality genomes)
+
+Identify_IBD_Regions_ChrX_Final.R (as above, but for X chromosomes, for which the IBD thresholds differ due to male haploidy)
+
+Compare_Within_Genome_Population_Pi.R (within-genome heterozygosity is compared to among-genome pi to identify IBD regions for masking, returning a list of IBD regions to be masked similar to pairwise IBD script output)
+
+Compare_Within_Genome_ChrX.R (as above, but specific to X chromosomes, where IBD thresholds are different from autosome due to male haploidy)
+
+Mask_Countfile_Windows.R (takes the coordinates of identified pairwise IBD regions from output files of Identify_IBD_Regions scripts and masks the corresponding countfile intervals)
+
+Mask_Homozygous_IBD_Regions.R (takes coordinates of identified within-genome IBD regions from output files of Compare_Within_Genome scripts and masks the corresponding countfile intervals)
+
+windows_ZI25000_Chr*.txt (reference files with coordinates of intervals assayed for evidence of intragenomic and pairwise IBD)
+
+
+V. Counts: Creating Count Files and Processing PBE
+freqshow_mixed_haploid_and_full_diploid.pl (create nucleotide count tables from sequence data for specified sample/chromosome arm names)
+
+pbe_from_counts_fst_corrected.pl (computes pairwise Fst based on Reynolds et al 1983 sampling formula from allele frequencies of focal and outgroup population. Population branch statistic PBS and population branch excess PBE are calculated from the three pairwise Fst. Output file contains both per-site and per-window PBE. Windows are specified using the same interval files as in IBD analysis)
+
+outlier_regions.pl (concatenates adjacent regions with high, i.e. upper 1% quantile PBE windows, both contiguous and with an allowance of a gap of a specified number of windows that are not in upper 1% quantiles)
+
+
+VI. Gene Ontology
+GO_overlap.pl (applies randomization test to identify enrichment with respect to functional categories, taking into account gene position/length)
+
+VII. PCA analysis
+Downsample_NoMasking_ForPCA.R (downsamples genomes to 4 from each representative population, calculates pairwise distances, and computes principal components based on the correlation matrix. Each sample is projected onto PCA axes 1+2)
+
+
+VIII. Inversion Polymorphisms
+Inversion_Recalc.R (calculates the frequency of inversion-associated alleles from the historical and poolseq sampled populations using site coordinates of common Drosophila inversions in In_*fixeddif.kapun.txt files, taken from Kapun et al 2016).
+
+
+IX. Demographic Estimation
+Estimate_Population_Size_Bayesian_NoIBD_SingleChr3L.R (calculates the expected changes in allele frequency between 1933-2015 assuming 15 generations per year. The initial frequency is estimated by a Bayesian sampling of a mutation-drift equilibrium prior with an observed frequency equal to the estimated allele frequency in 1933. The frequencies of all polymorphic loci are tracked under a genetic drift modeled by binomial sampling in each generation. In the final generation, random allele sampling to mimic the effects of pooled sequencing is implemented to model the 2015 Lund poolseq samples. Mean allele frequency differences across polymorphic loci are computed between the initial and terminal generations for different effective population sizes, which are then compared to observed mean changes in allele frequency.
+
+Estimate_Population_Size_Bayesian_NoIBD_SingleChr3L_1800.R (as above, but for the 1809-1933 time interval. The other difference between this and the previous script is that the comparisons made are to individual rather than pool sequencing, so the terminal poolseq sampling is not simulated)
+
+simulate_history_ms_lundsplit_3L.py (creates input arguments based on European Drosophila demographic history as input for ms, which generates a distribution simulated genomes consistent with a model of genetic drift, mutation, and recombination for Lund effective population size Ne estimated from the above scripts. 
+
+calc_fst_from_ms_demog.py (takes the set of genomes simulated by ms and computes fst and other population genetic statistics)
