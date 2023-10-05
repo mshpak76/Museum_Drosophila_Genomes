@@ -9,7 +9,7 @@ Other PBE files for 1800's focal population have same name with Chr2R,3L,3R,X as
 
 
 Twentieth_ModernLund_FRZI_SitePBE_Chr2L.txt
-1933 (Twentieth Cent) Lund as focal population, 2015 (Modern) Lund as otugroup, 2010s Lyon (France = FR) as outgroup
+1933 (Twentieth Cent) Lund as focal population, 2015 (Modern) Lund as outgroup, 2010s Lyon (France = FR) as outgroup
 Other PBE files for 1800's focal population have same name with Chr2R,3L,3R,X as suffix in place of 2L
 
 
